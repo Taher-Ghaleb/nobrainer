@@ -99,5 +99,32 @@ module ModelsHelper
     end
   end
 
+  def load_belongs_to_polymorphic_models
+    define_class :Logo do
+      include NoBrainer::Document
+
+      belongs_to :imageable, polymorphic: true
+    end
+
+   define_class :Picture do
+      include NoBrainer::Document
+
+      belongs_to :imageable, polymorphic: true
+    end
+
+    define_class :Event do
+      include NoBrainer::Document
+
+      has_many :pictures, as: :imageable
+    end
+
+    define_class :Restaurant do
+      include NoBrainer::Document
+
+      has_one :logo, as: :imageable
+      has_many :pictures, as: :imageable
+    end
+  end
+
   RSpec.configure { |config| config.include self }
 end

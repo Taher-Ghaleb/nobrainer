@@ -3,7 +3,7 @@ class NoBrainer::Document::Association::BelongsTo
 
   class Metadata
     VALID_OPTIONS = [:primary_key, :foreign_key, :class_name, :foreign_key_store_as,
-                     :index, :validates, :required, :uniq, :unique]
+                     :index, :validates, :required, :uniq, :unique, :polymorphic]
     include NoBrainer::Document::Association::Core::Metadata
     include NoBrainer::Document::Association::EagerLoader::Generic
 
@@ -31,7 +31,11 @@ class NoBrainer::Document::Association::BelongsTo
     end
 
     def target_model
-      get_model_by_name(options[:class_name] || target_name.to_s.camelize)
+      if options[:polymorphic]
+        get_model_by_name(owner_model.send([target_name, :type].join('_')))
+      else
+        get_model_by_name(options[:class_name] || target_name.to_s.camelize)
+      end
     end
 
     def base_criteria
@@ -48,6 +52,15 @@ class NoBrainer::Document::Association::BelongsTo
       end
 
       owner_model.field(foreign_key, :store_as => options[:foreign_key_store_as], :index => options[:index])
+
+      if options[:polymorphic]
+        type_column_name = [target_name, :type].join('_')
+        id_column_name = [target_name, primary_key].join('_')
+
+        owner_model.field(type_column_name.to_sym, type: String)
+        owner_model.field(id_column_name.to_sym, type: String)
+        owner_model.index([id_column_name.to_sym, type_column_name.to_sym])
+      end
 
       unless options[:validates] == false
         owner_model.validates(target_name, options[:validates]) if options[:validates]
@@ -97,12 +110,29 @@ class NoBrainer::Document::Association::BelongsTo
     @target_container = nil
   end
 
+  def polymorphic_read
+    return target if loaded?
+
+    target_id = owner.read_attribute(foreign_key)
+    target_class = owner.read_attribute([target_name, :type].join('_').to_sym)
+
+    if target_id && target_class
+      preload(target_class.where(primary_key => target_id).first)
+    end
+  end
+
   def read
     return target if loaded?
 
     if fk = owner.read_attribute(foreign_key)
       preload(base_criteria.where(primary_key => fk).first)
     end
+  end
+
+  def polymorphic_write(target)
+    owner.write_attribute(foreign_key, target.try(primary_key))
+    owner.write_attribute([target_name, :type].join('_').to_sym, target.class.name)
+    preload(target)
   end
 
   def write(target)

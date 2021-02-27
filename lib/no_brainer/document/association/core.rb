@@ -33,8 +33,8 @@ module NoBrainer::Document::Association::Core
 
     def hook
       options.assert_valid_keys(*self.class.const_get(:VALID_OPTIONS))
-      delegate("#{target_name}=", :write)
-      delegate("#{target_name}", :read)
+      delegate("#{target_name}=", "#{'polymorphic_' if options[:polymorphic]}write".to_sym)
+      delegate("#{target_name}", "#{'polymorphic_' if options[:polymorphic]}read".to_sym)
     end
 
     def add_callback_for(what)

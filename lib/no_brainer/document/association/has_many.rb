@@ -2,7 +2,8 @@ class NoBrainer::Document::Association::HasMany
   include NoBrainer::Document::Association::Core
 
   class Metadata
-    VALID_OPTIONS = [:primary_key, :foreign_key, :class_name, :dependent, :scope]
+    VALID_OPTIONS = [:primary_key, :foreign_key, :class_name, :dependent, :scope,
+                     :as]
     include NoBrainer::Document::Association::Core::Metadata
     include NoBrainer::Document::Association::EagerLoader::Generic
 
@@ -58,8 +59,21 @@ class NoBrainer::Document::Association::HasMany
   end
 
   def target_criteria
-    @target_criteria ||= base_criteria.where(foreign_key => owner.__send__(primary_key))
-                                      .after_find(set_inverse_proc)
+    @target_criteria ||= begin
+      query_criteria = { foreign_key => owner.__send__(primary_key) }
+
+      if metadata.options[:as]
+        polymorphic_id_foreign_key = [metadata.options[:as], primary_key].join('_')
+        polymorphic_type_foreign_key = [metadata.options[:as], :type].join('_')
+
+        query_criteria = {
+          polymorphic_id_foreign_key => owner.__send__(primary_key),
+          polymorphic_type_foreign_key => owner.class.name
+        }
+      end
+
+      base_criteria.where(query_criteria).after_find(set_inverse_proc)
+    end
   end
 
   def read
